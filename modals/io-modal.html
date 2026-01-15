@@ -1,0 +1,88 @@
+<div id="ioModal" class="modal hidden" aria-hidden="true">
+  <div id="ioBackdrop" class="modal-backdrop"></div>
+
+  <!-- Dialog -->
+  <div
+    class="modal-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Internal Order Lookup"
+  >
+    <!-- Header -->
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Internal Order Lookup</h3>
+        <p class="modal-subtitle">Search and select an Internal Order.</p>
+      </div>
+
+      <button id="ioClose" type="button" class="icon-btn" aria-label="Close">
+        <!-- <i class="fa-solid fa-xmark"></i> -->
+      </button>
+    </div>
+
+    <!-- Search -->
+    <div class="mt-3">
+      <div class="search-wrap">
+        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+        <input
+          id="ioSearch"
+          type="text"
+          placeholder="Search Internal Order / Description / Country..."
+          class="search-input"
+        />
+      </div>
+    </div>
+
+    <div class="mt-3 flex items-center gap-2">
+      <input id="ioExcelFile" type="file" accept=".xlsx,.xls,.csv" />
+      <button id="ioClearData" type="button" class="btn-outline">Clear</button>
+
+      <span id="ioFileHint" class="text-xs" style="opacity: 0.75">
+        Upload an Excel file to populate the table.
+      </span>
+    </div>
+
+    <!-- Table container -->
+    <div class="table-shell mt-3">
+      <div class="io-scroll">
+        <table class="io-table">
+          <thead>
+            <tr class="select-none">
+              <!-- Frozen columns -->
+              <th class="excel-th sticky-col-1 col-io">Internal Order</th>
+              <th class="excel-th sticky-col-2 col-desc">
+                Internal Order Description
+              </th>
+
+              <!-- Scrollable columns -->
+              <th class="excel-th col-num text-right">Sum of Q3 Budget</th>
+              <th class="excel-th col-num2 text-right">Sum of Q3 Open PO</th>
+              <th class="excel-th col-num2 text-right">Sum of Q3 Invoiced</th>
+              <th class="excel-th col-num3 text-right">
+                Sum of Q3 Inflight PO
+              </th>
+              <th class="excel-th col-num3 text-right">Sum of Q3 Exceptions</th>
+              <th class="excel-th col-num4 text-right">Sum of Q3 Committed</th>
+
+              <th class="excel-th excel-th-yellow col-wide text-right">
+                Sum of Q3 Remaining Balance
+              </th>
+
+              <th class="excel-th col-pct text-right">Q3 Committed %</th>
+              <th class="excel-th excel-th-yellow col-check">Check Point</th>
+            </tr>
+          </thead>
+
+          <tbody id="ioTableBody" class="tbody-text">
+            <!-- Rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer mt-3">
+      <button type="button" id="ioCancel" class="btn-outline">Close</button>
+    </div>
+  </div>
+</div>

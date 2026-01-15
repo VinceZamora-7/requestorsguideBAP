@@ -1,0 +1,42 @@
+Field,Value
+"Service Type","PO Creation"
+"P&C Information","With Personal and Confidential Information"
+"undefined","undefined"
+"Country","Japan 1079"
+"Category Name","Associations: Membership & Dues"
+"Is there a Government Official attending?","on"
+"PO in Local Currency","1000"
+"PO Amount in USD","6.90"
+,
+Output Table,
+Field Name,Description
+"Microsoft Legal Entity Name","Microsoft Japan Co. Ltd."
+"Start Date","Start must date 3-5 days from the date of service request submission"
+"SSPA Requirements","If PO involves gathering of Personal and Confidential Information, vendor must be SSPA Compliant"
+"TGH Approval","Please select an option"
+"Safe Approver","Final Approver (MS FTE),  Interim and Safe(final ) Approver cannot be the same
+
+Check limits at MS authorized
+
+Use Authorization type GENERAL"
+"MS Signatory","Use GCO Signer look up to determine the qualified signatory"
+"Local Area Business Rule","business justification is provided by requester related to the PO, please update the same in business justification tab. Also, if any input is shared in the 'Notes for PO Approver' 
+field in MaSH, please have the details mentioned in the Business Justification field of MyOrder.
+
+For 802067 - put what will be the partner led activity
+
+FOR GPS put if MPP or REV adjust
+
+No Personal & Confidential data involved
+Personal & Confidential data will be handled 
+Personal and Confidential involve
+SOW for Signature
+SOW (contract ID)
+CORT approval attached
+Privacy approval attached
+No GO
+Go involve
+ - #of GO
+Budget validation email
+other quarter budget approval attched
+IO validation attached"
