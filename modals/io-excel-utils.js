@@ -7,33 +7,28 @@
   // CONFIG (EDIT THESE)
   // =========================
   const CONFIG = {
-    // Rows you want to DISPLAY (Excel row numbers are 1-based)
-    displayRange: { startRow: 3, endRow: null }, // endRow: null = auto
-
-    // If you want to stop rendering after N consecutive empty rows (in mapped columns)
-    // Set to Infinity to never stop early during rendering
+    displayRange: { startRow: 3, endRow: null },
     stopAfterEmptyRun: Infinity,
 
-    // ✅ Performance + reliability
-    // Only read needed columns, then detect last row by scanning down.
-    rangeMinCol: "F", // first needed column (F in your sheet)
-    rangeMaxCol: "P", // last needed column (P in your sheet)
-    maxEmptyRunToFindEnd: 50, // auto-detect end: stop scanning after 50 empty rows
-    maxRowsHardCap: 20000, // safety cap so huge files don't freeze the page
-    endRowBuffer: 200, // buffer beyond used range (helps when !ref is short)
+    // Performance + reliability
+    rangeMinCol: "F",
+    rangeMaxCol: "P",
+    maxEmptyRunToFindEnd: 50,
+    maxRowsHardCap: 20000,
+    endRowBuffer: 200,
 
-    // Column letter mapping
+    // Column letter mapping (your sheet)
     col: {
       io: "F",
       desc: "G",
-      budget: "H",
+      budget: "H", // H
       openpo: "I",
       invoiced: "J",
       inflight: "K",
       exceptions: "L",
-      committed: "M",
+      committed: "M", // M
       remaining: "N",
-      pct: "O",
+      pct: "O", // (we will IGNORE this and compute pct from M/H)
       checkpoint: "P",
     },
   };
@@ -42,34 +37,53 @@
   // Formatting helpers
   // =========================
   const toDash = (v) => {
-    // treat 0 and "0" as dash
     if (v === 0) return "-";
     const s = String(v ?? "").trim();
     if (s === "" || s === "0") return "-";
     return s;
   };
 
-  function cleanMoneyLike(v) {
-    const s = String(v ?? "").trim();
-    if (s === "" || s === "-" || s === "0") return "-";
-    const raw = s.replace(/,/g, "").replace(/\s+/g, "");
-    if (raw !== "" && !Number.isNaN(Number(raw))) {
-      const n = Number(raw);
-      return n === 0 ? "-" : n.toLocaleString();
-    }
-    return s;
+  function parseNumber(v) {
+    if (v === null || v === undefined) return null;
+
+    // If already a number
+    if (typeof v === "number") return Number.isFinite(v) ? v : null;
+
+    const s0 = String(v).trim();
+    if (s0 === "" || s0 === "-" || s0 === "0") return 0;
+
+    // Remove commas/spaces
+    const s = s0.replace(/,/g, "").replace(/\s+/g, "");
+
+    // Strip trailing percent sign if present (we want numeric)
+    const sNoPct = s.endsWith("%") ? s.slice(0, -1) : s;
+
+    const n = Number(sNoPct);
+    return Number.isFinite(n) ? n : null;
   }
 
-  function cleanPercent(v) {
-    const s = String(v ?? "").trim();
-    if (s === "" || s === "-" || s === "0") return "-";
-    if (s.includes("%")) return s === "0%" ? "-" : s;
-    const raw = s.replace(/\s+/g, "");
-    if (raw !== "" && !Number.isNaN(Number(raw))) {
-      const n = Number(raw);
-      return n === 0 ? "-" : `${n}%`;
-    }
-    return s;
+  function cleanMoneyLike(v) {
+    const n = parseNumber(v);
+    if (n === null) return toDash(v);
+    if (n === 0) return "-";
+    return n.toLocaleString();
+  }
+
+  function computePercentFromCommittedAndBudget(committedVal, budgetVal) {
+    const committed = parseNumber(committedVal);
+    const budget = parseNumber(budgetVal);
+
+    // If budget is missing/0, can't divide
+    if (!budget || budget === 0) return "-";
+
+    // If committed missing/0, show dash
+    if (!committed || committed === 0) return "-";
+
+    const pct = (committed / budget) * 100;
+
+    // Format nicely: drop trailing .0
+    const rounded = Math.round(pct);
+    return `${rounded}%`;
   }
 
   // =========================
@@ -81,7 +95,7 @@
       .toUpperCase()
       .trim();
     for (let i = 0; i < s.length; i++) n = n * 26 + (s.charCodeAt(i) - 64);
-    return n - 1; // 0-based
+    return n - 1;
   }
 
   function pickLargestSheet(wb) {
@@ -107,29 +121,34 @@
     return colIdxs.every((idx) => String(rowArr?.[idx] ?? "").trim() === "");
   }
 
+  // ✅ pct computed from committed/budget (M/H)
   function mapRowArrayToTableRow(rowArr, idx) {
     const get = (key) => rowArr?.[idx[key]] ?? "";
+
+    const budgetRaw = get("budget");
+    const committedRaw = get("committed");
+
     return {
       group: false,
       io: toDash(get("io")),
       desc: toDash(get("desc")),
-      budget: cleanMoneyLike(get("budget")),
+      budget: cleanMoneyLike(budgetRaw),
       openpo: cleanMoneyLike(get("openpo")),
       invoiced: cleanMoneyLike(get("invoiced")),
       inflight: cleanMoneyLike(get("inflight")),
       exceptions: cleanMoneyLike(get("exceptions")),
-      committed: cleanMoneyLike(get("committed")),
+      committed: cleanMoneyLike(committedRaw),
       remaining: cleanMoneyLike(get("remaining")),
-      pct: cleanPercent(get("pct")),
+
+      // IMPORTANT: ignore column O and compute:
+      pct: computePercentFromCommittedAndBudget(committedRaw, budgetRaw),
+
       checkpoint: toDash(get("checkpoint")),
     };
   }
 
   // =========================
-  // Fast + reliable parser
-  // - Reads only needed columns (F..P)
-  // - Detects end row by scanning empty runs
-  // - Returns JSON (aoa) + tableRows
+  // Fast parser
   // =========================
   async function excelFileToIoJson(file, cfg = CONFIG) {
     const buf = await file.arrayBuffer();
@@ -137,23 +156,20 @@
 
     const ws = pickLargestSheet(wb);
 
-    const startRow = Math.max(1, Number(cfg.displayRange?.startRow) || 1); // 1-based
-    const startColIdx = colLetterToIndex(cfg.rangeMinCol || cfg.col.io); // F
-    const endColIdx = colLetterToIndex(cfg.rangeMaxCol || "P"); // P
+    const startRow = Math.max(1, Number(cfg.displayRange?.startRow) || 1);
+    const startColIdx = colLetterToIndex(cfg.rangeMinCol || cfg.col.io);
+    const endColIdx = colLetterToIndex(cfg.rangeMaxCol || "P");
 
-    // Used range end row (often wrong / too short)
     const baseRef = ws["!ref"] || "A1";
     const baseRange = XLSX.utils.decode_range(baseRef);
-    const usedEndRow1 = baseRange.e.r + 1; // 1-based
+    const usedEndRow1 = baseRange.e.r + 1;
 
-    // Guess end row: used end + small buffer, then hard cap
     const hardCap = Number(cfg.maxRowsHardCap) || 20000;
     const buffer = Number(cfg.endRowBuffer) || 200;
 
     let endRowGuess = Math.max(usedEndRow1 + buffer, startRow);
     endRowGuess = Math.min(endRowGuess, startRow + hardCap - 1);
 
-    // Read only the needed range (F..P and rows startRow..endRowGuess)
     const range = {
       s: { r: startRow - 1, c: startColIdx },
       e: { r: endRowGuess - 1, c: endColIdx },
@@ -166,13 +182,11 @@
       range,
     });
 
-    // Indices relative to the read range (since we start at column F)
     const keys = Object.keys(cfg.col);
     const usedIdxsRel = keys.map(
       (k) => colLetterToIndex(cfg.col[k]) - startColIdx
     );
 
-    // Detect the real last data row by scanning for empty runs
     const maxEmptyRun = Number(cfg.maxEmptyRunToFindEnd ?? 50);
     let emptyRun = 0;
     let lastNonEmpty = -1;
@@ -190,13 +204,11 @@
       if (emptyRun >= maxEmptyRun) break;
     }
 
-    // Keep up to lastNonEmpty (if everything empty, keep 0 rows)
     const finalLen = Math.max(0, Math.min(aoa.length, lastNonEmpty + 1));
     aoa = aoa.slice(0, finalLen);
 
-    // Build JSON source-of-truth
     const ioExcelJson = {
-      aoa, // ONLY columns F..P, ONLY rows starting at startRow
+      aoa,
       meta: {
         fileName: file.name,
         parsedAt: new Date().toISOString(),
@@ -208,19 +220,16 @@
       },
     };
 
-    // Build mapping indices (relative to the F..P range)
     const idxRel = {};
     for (const k of keys)
       idxRel[k] = colLetterToIndex(cfg.col[k]) - startColIdx;
 
-    // Enforce endRow if user provided it (absolute Excel row number)
     let maxRows = aoa.length;
     if (cfg.displayRange?.endRow != null) {
       const endRow = Number(cfg.displayRange.endRow);
       maxRows = Math.min(maxRows, Math.max(0, endRow - startRow + 1));
     }
 
-    // Build tableRows
     const tableRows = [];
     let stopEmpty = 0;
 
@@ -246,7 +255,6 @@
     CONFIG,
     toDash,
     cleanMoneyLike,
-    cleanPercent,
     colLetterToIndex,
     pickLargestSheet,
     isRowEmptyByCols,
