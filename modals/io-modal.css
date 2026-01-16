@@ -168,7 +168,7 @@ table.io-table thead th {
   width: 140px;
 }
 .col-desc {
-  width: 280px;
+  width: 180px;
 }
 .col-num {
   width: 130px;
@@ -183,10 +183,10 @@ table.io-table thead th {
   width: 160px;
 }
 .col-wide {
-  width: 190px;
+  width: 200px;
 }
 .col-pct {
-  width: 120px;
+  width: 220px;
 }
 .col-check {
   width: 120px;

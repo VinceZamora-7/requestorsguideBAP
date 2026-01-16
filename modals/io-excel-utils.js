@@ -41,24 +41,34 @@
   // =========================
   // Formatting helpers
   // =========================
-  const toDash = (v) =>
-    String(v ?? "").trim() === "" ? "-" : String(v).trim();
+  const toDash = (v) => {
+    // treat 0 and "0" as dash
+    if (v === 0) return "-";
+    const s = String(v ?? "").trim();
+    if (s === "" || s === "0") return "-";
+    return s;
+  };
 
   function cleanMoneyLike(v) {
     const s = String(v ?? "").trim();
-    if (s === "" || s === "-") return "-";
+    if (s === "" || s === "-" || s === "0") return "-";
     const raw = s.replace(/,/g, "").replace(/\s+/g, "");
-    if (raw !== "" && !Number.isNaN(Number(raw)))
-      return Number(raw).toLocaleString();
+    if (raw !== "" && !Number.isNaN(Number(raw))) {
+      const n = Number(raw);
+      return n === 0 ? "-" : n.toLocaleString();
+    }
     return s;
   }
 
   function cleanPercent(v) {
     const s = String(v ?? "").trim();
-    if (s === "" || s === "-") return "-";
-    if (s.includes("%")) return s;
+    if (s === "" || s === "-" || s === "0") return "-";
+    if (s.includes("%")) return s === "0%" ? "-" : s;
     const raw = s.replace(/\s+/g, "");
-    if (raw !== "" && !Number.isNaN(Number(raw))) return `${Number(raw)}%`;
+    if (raw !== "" && !Number.isNaN(Number(raw))) {
+      const n = Number(raw);
+      return n === 0 ? "-" : `${n}%`;
+    }
     return s;
   }
 
