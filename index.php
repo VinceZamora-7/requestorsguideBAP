@@ -420,6 +420,7 @@
 
     <!-- Your existing main script -->
     <script src="script.js"></script>
-    <script src="modals/io-modal.js"></script>
+<script src="modals/io-excel-utils.js"></script>
+<script src="modals/io-modal.js"></script>
   </body>
 </html>

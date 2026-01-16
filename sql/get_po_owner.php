@@ -1,41 +1,45 @@
 <?php
-ini_set('display_errors', 1);
+declare(strict_types=1);
+
+ini_set('display_errors', '1');
 error_reporting(E_ALL);
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 
-$host = "localhost";
-$username = "root";
-$password = "";
-$dbname = "pocsv_db";
-
-$conn = new mysqli($host, $username, $password, $dbname);
-$conn->set_charset("utf8mb4");
-
-if ($conn->connect_error) {
-    die(json_encode(['error' => 'DB Connection failed']));
+/**
+ * Send JSON response and exit.
+ */
+function respond(array $data, int $statusCode = 200): void {
+    http_response_code($statusCode);
+    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
-if (!isset($_GET['country']) || !isset($_GET['category'])) {
-    die(json_encode(['error' => 'Missing parameters']));
+/**
+ * Require GET param, trimmed.
+ */
+function getParam(string $key): string {
+    if (!isset($_GET[$key])) {
+        respond(['error' => "Missing parameter: {$key}"], 400);
+    }
+    return trim((string)$_GET[$key]);
 }
 
-$country  = trim($_GET['country']);
-$category = trim($_GET['category']);
+// ✅ Use shared DB connection
+require_once __DIR__ . '/db.php';
 
-// ------------------------------------------------------------------
-// 1️⃣ Get all real columns from database so we don't select missing ones
-// ------------------------------------------------------------------
-$existingCols = [];
-$colResult = $conn->query("SHOW COLUMNS FROM compliance_rules");
-
-while ($row = $colResult->fetch_assoc()) {
-    $existingCols[] = $row['Field'];
+// db.php currently dies(json_encode(...)) on failure.
+// That's OK for JSON endpoints, but we still add a guard:
+if (!isset($conn) || !($conn instanceof mysqli)) {
+    respond(['error' => 'DB connection not available'], 500);
 }
+$conn->set_charset('utf8mb4');
 
-// ------------------------------------------------------------------
-// 2️⃣ Main fields used by your UI
-// ------------------------------------------------------------------
+// Inputs
+$country  = getParam('country');
+$category = getParam('category');
+
+// Main fields used by your UI
 $baseColumns = [
     'PO_Owner',
     'CompanyCode',
@@ -64,66 +68,99 @@ $baseColumns = [
     'TGHApproval'
 ];
 
-// ------------------------------------------------------------------
-// 3️⃣ Build SELECT columns dynamically based on what exists in DB
-// ------------------------------------------------------------------
+// 1) Get existing columns in table
+$existingCols = [];
+$colResult = $conn->query("SHOW COLUMNS FROM compliance_rules");
+if (!$colResult) {
+    respond(['error' => 'Failed to read table columns', 'details' => $conn->error], 500);
+}
+while ($row = $colResult->fetch_assoc()) {
+    $existingCols[] = $row['Field'];
+}
+$colResult->free();
+
+$exists = array_flip($existingCols);
+
+// 2) Build SELECT columns dynamically
 $selectCols = [];
 
 foreach ($baseColumns as $col) {
-
-    // Always include the main value column
-    if (in_array($col, $existingCols)) {
-        $selectCols[] = $col;
+    // main value column
+    if (isset($exists[$col])) {
+        $selectCols[] = "`$col`";
     }
 
-    // Friendly name column
+    // friendly
     $friendly = ($col === "DeliveryDate_EndDate")
         ? "DeliveryDate_FriendlyName"
         : $col . "_FriendlyName";
 
-    if (in_array($friendly, $existingCols)) {
-        $selectCols[] = "$friendly AS {$col}_FriendlyMapped";
+    if (isset($exists[$friendly])) {
+        $selectCols[] = "`$friendly` AS `{$col}_FriendlyMapped`";
     }
 
-    // KB Column
+    // KB
     $kb = ($col === "DeliveryDate_EndDate")
         ? "DeliveryDate_KB"
         : $col . "_KB";
 
-    if (in_array($kb, $existingCols)) {
-        $selectCols[] = "$kb AS {$col}_KBMapped";
+    if (isset($exists[$kb])) {
+        $selectCols[] = "`$kb` AS `{$col}_KBMapped`";
     }
 }
 
-$colStr = implode(",", $selectCols);
+if (empty($selectCols)) {
+    respond(['error' => 'No selectable columns found in compliance_rules'], 500);
+}
 
-// ------------------------------------------------------------------
-// 4️⃣ Run queries
-// ------------------------------------------------------------------
-$stmt1 = $conn->prepare("
+$colStr = implode(", ", $selectCols);
+
+// 3) Query helpers
+function fetchOne(mysqli $conn, string $sql, string $country, ?string $category = null): array {
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        respond(['error' => 'Prepare failed', 'details' => $conn->error], 500);
+    }
+
+    if ($category === null) {
+        $stmt->bind_param("s", $country);
+    } else {
+        $stmt->bind_param("ss", $country, $category);
+    }
+
+    if (!$stmt->execute()) {
+        $err = $stmt->error;
+        $stmt->close();
+        respond(['error' => 'Execute failed', 'details' => $err], 500);
+    }
+
+    $res = $stmt->get_result();
+    $row = $res ? ($res->fetch_assoc() ?: []) : [];
+    $stmt->close();
+
+    return $row;
+}
+
+// 4) Run queries
+$sqlCountry = "
     SELECT $colStr
     FROM compliance_rules
     WHERE TRIM(Country) = TRIM(?)
     LIMIT 1
-");
-$stmt1->bind_param("s", $country);
-$stmt1->execute();
-$rowCountry = $stmt1->get_result()->fetch_assoc() ?: [];
+";
 
-$stmt2 = $conn->prepare("
+$sqlBoth = "
     SELECT $colStr
     FROM compliance_rules
-    WHERE TRIM(Country) = TRIM(?) 
+    WHERE TRIM(Country) = TRIM(?)
       AND TRIM(CategoryName) = TRIM(?)
     LIMIT 1
-");
-$stmt2->bind_param("ss", $country, $category);
-$stmt2->execute();
-$rowBoth = $stmt2->get_result()->fetch_assoc() ?: [];
+";
 
-// ------------------------------------------------------------------
-// 5️⃣ Build final JSON output
-// ------------------------------------------------------------------
+$rowCountry = fetchOne($conn, $sqlCountry, $country);
+$rowBoth    = fetchOne($conn, $sqlBoth, $country, $category);
+
+// 5) Build final response
 $final = [
     'values'   => [],
     'articles' => [],
@@ -131,28 +168,18 @@ $final = [
 ];
 
 foreach ($baseColumns as $col) {
+    $valueKey    = $col;
+    $friendlyKey = "{$col}_FriendlyMapped";
+    $kbKey       = "{$col}_KBMapped";
 
-    $valueKey     = $col;
-    $friendlyKey  = $col . "_FriendlyMapped";
-    $kbKey        = $col . "_KBMapped";
-
-    // Value
     $final['values'][$col] =
-        $rowBoth[$valueKey] ??
-        $rowCountry[$valueKey] ??
-        "Not Found";
+        $rowBoth[$valueKey] ?? $rowCountry[$valueKey] ?? "Not Found";
 
-    // Friendly Name
     $final['articles'][$col] =
-        $rowBoth[$friendlyKey] ??
-        $rowCountry[$friendlyKey] ??
-        "Not Found";
+        $rowBoth[$friendlyKey] ?? $rowCountry[$friendlyKey] ?? "Not Found";
 
-    // KB link
     $final['links'][$col] =
-        $rowBoth[$kbKey] ??
-        $rowCountry[$kbKey] ??
-        "#";
+        $rowBoth[$kbKey] ?? $rowCountry[$kbKey] ?? "#";
 }
 
-echo json_encode($final, JSON_UNESCAPED_UNICODE);
+respond($final, 200);
