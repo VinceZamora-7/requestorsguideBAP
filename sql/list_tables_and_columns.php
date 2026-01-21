@@ -5,63 +5,65 @@ header('Content-Type: application/json; charset=utf-8');
 require __DIR__ . '/db.php';
 
 try {
-    $serverInfo = $pdo->query("
-        SELECT @@SERVERNAME AS server_name, DB_NAME() AS database_name
-    ")->fetch();
+    $schema = isset($_GET['schema']) ? trim((string)$_GET['schema']) : 'dbo';
+    $table  = isset($_GET['table'])  ? trim((string)$_GET['table'])  : '';
 
-    // Pull everything in one query (fast)
-    $stmt = $pdo->query("
+    if ($table === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Missing parameter: table'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    // Allow-list validation (prevents injection)
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $schema) || !preg_match('/^[A-Za-z0-9_]+$/', $table)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid schema/table'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $serverInfo = $pdo->query("SELECT @@SERVERNAME AS server_name, DB_NAME() AS database_name")->fetch();
+
+    // Columns meta
+    $colStmt = $pdo->prepare("
         SELECT
-            TABLE_SCHEMA  AS schema_name,
-            TABLE_NAME    AS table_name,
-            COLUMN_NAME   AS column_name,
-            DATA_TYPE     AS data_type,
+            COLUMN_NAME   AS name,
+            DATA_TYPE     AS type,
             CHARACTER_MAXIMUM_LENGTH AS char_max_len,
             NUMERIC_PRECISION AS numeric_precision,
             NUMERIC_SCALE AS numeric_scale,
             IS_NULLABLE   AS is_nullable,
-            ORDINAL_POSITION AS ordinal_position
+            ORDINAL_POSITION AS position
         FROM INFORMATION_SCHEMA.COLUMNS
-        ORDER BY TABLE_SCHEMA, TABLE_NAME, ORDINAL_POSITION
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+        ORDER BY ORDINAL_POSITION
     ");
+    $colStmt->execute([$schema, $table]);
+    $columns = $colStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Group results: schema.table -> columns[]
-    $grouped = [];
-    foreach ($rows as $r) {
-        $key = $r['schema_name'] . '.' . $r['table_name'];
-        if (!isset($grouped[$key])) {
-            $grouped[$key] = [
-                'schema' => $r['schema_name'],
-                'table'  => $r['table_name'],
-                'columns' => []
-            ];
-        }
-        $grouped[$key]['columns'][] = [
-            'name' => $r['column_name'],
-            'type' => $r['data_type'],
-            'char_max_len' => $r['char_max_len'],
-            'numeric_precision' => $r['numeric_precision'],
-            'numeric_scale' => $r['numeric_scale'],
-            'nullable' => $r['is_nullable'],
-            'position' => $r['ordinal_position'],
-        ];
+    if (!$columns) {
+        http_response_code(404);
+        echo json_encode(['error' => "Table not found or no columns: $schema.$table"], JSON_UNESCAPED_UNICODE);
+        exit;
     }
 
-    // Convert map to list
-    $tables = array_values($grouped);
+    // All rows
+    $sql = "SELECT * FROM [$schema].[$table]";
+    $stmt = $pdo->query($sql);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode([
         'server' => $serverInfo,
-        'table_count' => count($tables),
-        'tables' => $tables,
+        'schema' => $schema,
+        'table'  => $table,
+        'count'  => count($rows),
+        'columns'=> $columns,
+        'rows'   => $rows,
     ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
 } catch (Throwable $e) {
     http_response_code(500);
     echo json_encode([
-        'error' => 'Server error',
+        'error'  => 'Server error',
         'detail' => $e->getMessage()
     ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 }

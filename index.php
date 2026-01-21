@@ -132,6 +132,7 @@
                 <option value="Japan1079">Japan 1079</option>
                 <option value="Korea1056">Korea 1056</option>
                 <option value="Malaysia1037">Malaysia 1037</option>
+                <option value="Myanmar1224">Myanmar 1224</option>
                 <option value="Philippines1047">Philippines 1047</option>
                 <option value="Singapore1290">Singapore 1290</option>
                 <option value="Singapore1291">Singapore 1291</option>

@@ -98,6 +98,9 @@ document.addEventListener("DOMContentLoaded", () => {
     Taiwan1058: "TWD",
     Thailand1021: "THB",
     Vietnam1714: "VND",
+
+    // ✅ add this
+    Myanmar1224: "MMK",
   };
 
   const currencyData = {
@@ -115,6 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
     THB: { rate: 0.03066, precision: 5 },
     TWD: { rate: 0.03343, precision: 5 },
     VND: { rate: 0.000038506, precision: 9 },
+    MMK: { rate: 0.0004762, precision: 7 },
   };
 
   const rows = [
