@@ -78,10 +78,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // ========================
   // DATA (MUST MATCH HTML option values)
   // ========================
+  // Normalizes: removes spaces + tabs so "Brunei 1720" == "Brunei\t1720" == "Brunei1720"
+  const normKey = (v) =>
+    String(v ?? "")
+      .replace(/\s+/g, "")
+      .replace(/\t/g, "");
+
   const countryCurrencyMap = {
-    "Brunei 1720": "BND",
+    Brunei1720: "BND",
     China1107: "CNY",
-    "Hong Kong1089": "HKD",
+    HongKong1089: "HKD",
     Indonesia1046: "IDR",
     Japan1079: "JPY",
     Korea1056: "KRW",
@@ -158,8 +164,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // ========================
   // COUNTRY/CURRENCY
   // ========================
-  const getSelectedCurrency = () =>
-    countryCurrencyMap[countryDropdown.value] || "USD";
+  const getSelectedCurrency = () => {
+    const key = normKey(countryDropdown.value);
+    return countryCurrencyMap[key] || "USD";
+  };
 
   // Track which field user last edited so we can recalc correctly on country change
   let lastAmountSource = null; // "local" | "usd" | null
@@ -320,21 +328,26 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     let threshold = 100000;
-    const c = countryDropdown.value;
-
-    // IMPORTANT: match HTML values
-    if (c === "Singapore1290" || c === "Singapore1291") threshold = 500000;
+    const cKey = normKey(countryDropdown.value);
+    if (cKey === "Singapore1290" || cKey === "Singapore1291")
+      threshold = 500000;
 
     const exceeded = usdVal > threshold;
 
     if (exceeded) {
       show(feedbackRow);
-      if (feedbackIcon)
-        feedbackIcon.className =
-          "icon fas fa-exclamation-circle text-red-600 mt-0.5";
       if (feedbackMessage) {
-        feedbackMessage.innerHTML = `<div class="font-semibold text-red-600">Procurement approval is required!</div>
-<div class="mt-1 font-semibold text-red-600">SOW is required!</div>`;
+        feedbackMessage.innerHTML = `
+    <div class="flex items-start gap-2">
+      <i class="fas fa-exclamation-circle text-red-600 mt-0.5" aria-hidden="true"></i>
+      <span class="font-semibold text-red-600">Procurement approval is required!</span>
+    </div>
+
+    <div class="mt-1 flex items-start gap-2">
+      <i class="fas fa-file-signature text-red-600 mt-0.5" aria-hidden="true"></i>
+      <span class="font-semibold text-red-600">SOW is required!</span>
+    </div>
+  `;
       }
 
       if (mandatoryRow) {
@@ -569,6 +582,9 @@ document.addEventListener("DOMContentLoaded", () => {
   countryDropdown.addEventListener("change", () => {
     recalcOnCountryChange();
     fetchDataDebounced();
+    // Recompute based on what the user already typed
+    if (localCurrencyInput.value) convertLocalToUSD();
+    else if (usdAmountInput.value) convertUSDToLocal();
   });
 
   categoryInput.addEventListener("change", fetchDataDebounced);
