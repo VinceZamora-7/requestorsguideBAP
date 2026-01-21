@@ -1,45 +1,38 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * get_po_owner.php (Azure SQL / PDO)
+ * - Reads from dbo.PODATA
+ * - Returns { values, articles, links }
+ * - Safe dynamic SELECT (only selects columns that exist)
+ * - Robust matching for Country/Category (handles tabs + extra spaces)
+ * - Optional debug=1 adds diagnostics
+ */
+
 ini_set('display_errors', '1');
 error_reporting(E_ALL);
 
 header('Content-Type: application/json; charset=utf-8');
 
-/**
- * Send JSON response and exit.
- */
-function respond(array $data, int $statusCode = 200): void {
-    http_response_code($statusCode);
-    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+require __DIR__ . '/db.php';
+
+$schema = 'dbo';
+$table  = 'PODATA';
+
+$country  = isset($_GET['country']) ? trim((string)$_GET['country']) : '';
+$category = isset($_GET['category']) ? trim((string)$_GET['category']) : '';
+$debug    = isset($_GET['debug']) ? (int)$_GET['debug'] : 0;
+
+if ($country === '' || $country === '#') {
+    http_response_code(400);
+    echo json_encode(['error' => 'Missing parameter: country'], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-/**
- * Require GET param, trimmed.
- */
-function getParam(string $key): string {
-    if (!isset($_GET[$key])) {
-        respond(['error' => "Missing parameter: {$key}"], 400);
-    }
-    return trim((string)$_GET[$key]);
-}
-
-// ✅ Use shared DB connection
-require_once __DIR__ . '/db.php';
-
-// db.php currently dies(json_encode(...)) on failure.
-// That's OK for JSON endpoints, but we still add a guard:
-if (!isset($conn) || !($conn instanceof mysqli)) {
-    respond(['error' => 'DB connection not available'], 500);
-}
-$conn->set_charset('utf8mb4');
-
-// Inputs
-$country  = getParam('country');
-$category = getParam('category');
-
-// Main fields used by your UI
+// -----------------------
+// Columns used by UI
+// -----------------------
 $baseColumns = [
     'PO_Owner',
     'CompanyCode',
@@ -47,7 +40,7 @@ $baseColumns = [
     'POTitle',
     'PODescription',
     'InvoiceApprover',
-    'StartDate',
+    'StartDatetext',
     'Supplier',
     'LineItemDescription',
     'DeliveryDate_EndDate',
@@ -65,121 +58,196 @@ $baseColumns = [
     'SafeApprover',
     'MSSignatory',
     'BusinessJustification',
-    'TGHApproval'
+    'TGHApproval',
 ];
 
-// 1) Get existing columns in table
-$existingCols = [];
-$colResult = $conn->query("SHOW COLUMNS FROM compliance_rules");
-if (!$colResult) {
-    respond(['error' => 'Failed to read table columns', 'details' => $conn->error], 500);
+// -----------------------
+// Helpers
+// -----------------------
+function out(array $payload, int $status = 200): void {
+    http_response_code($status);
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+    exit;
 }
-while ($row = $colResult->fetch_assoc()) {
-    $existingCols[] = $row['Field'];
+
+/**
+ * Normalizes SQL strings for matching:
+ * - trims
+ * - removes tabs
+ * - removes spaces (so "Philippines 1047" == "Philippines1047")
+ *
+ * NOTE: removing spaces is intentional because your DB has mixed formats
+ * (e.g., "Philippines1047", "Japan 1079", "Singapore\t1290").
+ */
+function normExpr(string $sqlIdentOrParamExpr): string {
+    // Replace TAB with '' then remove spaces then TRIM.
+    // Use nested REPLACE to normalize.
+    return "REPLACE(REPLACE(LTRIM(RTRIM($sqlIdentOrParamExpr)), CHAR(9), ''), ' ', '')";
 }
-$colResult->free();
 
-$exists = array_flip($existingCols);
+$countryColNorm  = normExpr('[Country]');
+$countryParamNorm = normExpr('?');
+$countryMatch    = "$countryColNorm = $countryParamNorm";
 
-// 2) Build SELECT columns dynamically
+$catColNorm      = normExpr('[CategoryName]');
+$catParamNorm    = normExpr('?');
+$categoryMatch   = "$catColNorm = $catParamNorm";
+
+// -----------------------
+// 1) Discover existing columns
+// -----------------------
+try {
+    $colStmt = $pdo->prepare("
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+    ");
+    $colStmt->execute([$schema, $table]);
+    $existingCols = $colStmt->fetchAll(PDO::FETCH_COLUMN);
+    $existingSet = array_flip($existingCols);
+} catch (Throwable $e) {
+    out(['error' => 'Failed reading table metadata', 'detail' => $e->getMessage()], 500);
+}
+
+// -----------------------
+// 2) Build SELECT list only from columns that exist
+// -----------------------
 $selectCols = [];
 
 foreach ($baseColumns as $col) {
-    // main value column
-    if (isset($exists[$col])) {
-        $selectCols[] = "`$col`";
+    if (isset($existingSet[$col])) {
+        $selectCols[] = "[$col]";
     }
 
-    // friendly
-    $friendly = ($col === "DeliveryDate_EndDate")
-        ? "DeliveryDate_FriendlyName"
-        : $col . "_FriendlyName";
+    $friendly = ($col === 'DeliveryDate_EndDate')
+        ? 'DeliveryDate_FriendlyName'
+        : $col . '_FriendlyName';
 
-    if (isset($exists[$friendly])) {
-        $selectCols[] = "`$friendly` AS `{$col}_FriendlyMapped`";
+    if (isset($existingSet[$friendly])) {
+        $selectCols[] = "[$friendly] AS [{$col}_FriendlyMapped]";
     }
 
-    // KB
-    $kb = ($col === "DeliveryDate_EndDate")
-        ? "DeliveryDate_KB"
-        : $col . "_KB";
+    $kb = ($col === 'DeliveryDate_EndDate')
+        ? 'DeliveryDate_KB'
+        : $col . '_KB';
 
-    if (isset($exists[$kb])) {
-        $selectCols[] = "`$kb` AS `{$col}_KBMapped`";
+    if (isset($existingSet[$kb])) {
+        $selectCols[] = "[$kb] AS [{$col}_KBMapped]";
     }
 }
 
-if (empty($selectCols)) {
-    respond(['error' => 'No selectable columns found in compliance_rules'], 500);
+if (!$selectCols) {
+    out(['error' => "No matching columns found in {$schema}.{$table}"], 500);
 }
 
-$colStr = implode(", ", $selectCols);
+$colStr = implode(', ', $selectCols);
 
-// 3) Query helpers
-function fetchOne(mysqli $conn, string $sql, string $country, ?string $category = null): array {
-    $stmt = $conn->prepare($sql);
-    if (!$stmt) {
-        respond(['error' => 'Prepare failed', 'details' => $conn->error], 500);
+// -----------------------
+// 3) Queries
+// -----------------------
+$rowCountry = [];
+$rowBoth = [];
+
+try {
+    // Country-only fallback
+    $stmt1 = $pdo->prepare("
+        SELECT TOP 1 $colStr
+        FROM [$schema].[$table]
+        WHERE $countryMatch
+    ");
+    $stmt1->execute([$country]);
+    $rowCountry = $stmt1->fetch() ?: [];
+
+    // Country + Category override
+    if ($category !== '' && $category !== '#') {
+        $stmt2 = $pdo->prepare("
+            SELECT TOP 1 $colStr
+            FROM [$schema].[$table]
+            WHERE $countryMatch AND $categoryMatch
+        ");
+        $stmt2->execute([$country, $category]);
+        $rowBoth = $stmt2->fetch() ?: [];
     }
-
-    if ($category === null) {
-        $stmt->bind_param("s", $country);
-    } else {
-        $stmt->bind_param("ss", $country, $category);
-    }
-
-    if (!$stmt->execute()) {
-        $err = $stmt->error;
-        $stmt->close();
-        respond(['error' => 'Execute failed', 'details' => $err], 500);
-    }
-
-    $res = $stmt->get_result();
-    $row = $res ? ($res->fetch_assoc() ?: []) : [];
-    $stmt->close();
-
-    return $row;
+} catch (Throwable $e) {
+    out(['error' => 'Query failed', 'detail' => $e->getMessage()], 500);
 }
 
-// 4) Run queries
-$sqlCountry = "
-    SELECT $colStr
-    FROM compliance_rules
-    WHERE TRIM(Country) = TRIM(?)
-    LIMIT 1
-";
-
-$sqlBoth = "
-    SELECT $colStr
-    FROM compliance_rules
-    WHERE TRIM(Country) = TRIM(?)
-      AND TRIM(CategoryName) = TRIM(?)
-    LIMIT 1
-";
-
-$rowCountry = fetchOne($conn, $sqlCountry, $country);
-$rowBoth    = fetchOne($conn, $sqlBoth, $country, $category);
-
-// 5) Build final response
-$final = [
-    'values'   => [],
-    'articles' => [],
-    'links'    => []
-];
+// -----------------------
+// 4) Build output
+// -----------------------
+$final = ['values' => [], 'articles' => [], 'links' => []];
 
 foreach ($baseColumns as $col) {
-    $valueKey    = $col;
-    $friendlyKey = "{$col}_FriendlyMapped";
-    $kbKey       = "{$col}_KBMapped";
-
     $final['values'][$col] =
-        $rowBoth[$valueKey] ?? $rowCountry[$valueKey] ?? "Not Found";
+        $rowBoth[$col] ?? $rowCountry[$col] ?? 'Not Found';
 
     $final['articles'][$col] =
-        $rowBoth[$friendlyKey] ?? $rowCountry[$friendlyKey] ?? "Not Found";
+        $rowBoth[$col . '_FriendlyMapped'] ?? $rowCountry[$col . '_FriendlyMapped'] ?? 'Not Found';
 
     $final['links'][$col] =
-        $rowBoth[$kbKey] ?? $rowCountry[$kbKey] ?? "#";
+        $rowBoth[$col . '_KBMapped'] ?? $rowCountry[$col . '_KBMapped'] ?? '#';
 }
 
-respond($final, 200);
+// -----------------------
+// 5) Debug info
+// -----------------------
+if ($debug === 1) {
+    try {
+        $dbg = [];
+        $dbg['received'] = ['country' => $country, 'category' => $category];
+
+        $dbg['whoami'] = $pdo->query("
+            SELECT @@SERVERNAME AS server_name, DB_NAME() AS database_name, SUSER_SNAME() AS login_name
+        ")->fetch();
+
+        $dbg['row_count'] = $pdo->query("
+            SELECT COUNT(*) AS cnt FROM [$schema].[$table]
+        ")->fetch();
+
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) AS cnt
+            FROM [$schema].[$table]
+            WHERE $countryMatch
+        ");
+        $stmt->execute([$country]);
+        $dbg['matches_country'] = $stmt->fetch();
+
+        if ($category !== '' && $category !== '#') {
+            $stmt = $pdo->prepare("
+                SELECT COUNT(*) AS cnt
+                FROM [$schema].[$table]
+                WHERE $countryMatch AND $categoryMatch
+            ");
+            $stmt->execute([$country, $category]);
+            $dbg['matches_country_category'] = $stmt->fetch();
+        }
+
+        // Show normalized view to catch whitespace/tab issues quickly
+        $dbg['sample_countries'] = $pdo->query("
+            SELECT TOP 20
+                [Country] AS raw_country,
+                $countryColNorm AS normalized_country,
+                COUNT(*) AS cnt
+            FROM [$schema].[$table]
+            GROUP BY [Country]
+            ORDER BY cnt DESC
+        ")->fetchAll();
+
+        $dbg['sample_categories'] = $pdo->query("
+            SELECT TOP 20
+                [CategoryName] AS raw_category,
+                $catColNorm AS normalized_category,
+                COUNT(*) AS cnt
+            FROM [$schema].[$table]
+            GROUP BY [CategoryName]
+            ORDER BY cnt DESC
+        ")->fetchAll();
+
+        $final['_debug'] = $dbg;
+    } catch (Throwable $e) {
+        // Don't fail the main response if debug fails
+        $final['_debug_error'] = $e->getMessage();
+    }
+}
+
+echo json_encode($final, JSON_UNESCAPED_UNICODE);

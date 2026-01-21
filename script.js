@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const localCurrencyInput = document.getElementById("localCurrency");
   const usdAmountInput = document.getElementById("usdAmount");
   const localCurrencyContainer = document.getElementById(
-    "localCurrencyContainer"
+    "localCurrencyContainer",
   );
   const usdAmountContainer = document.getElementById("usdAmountContainer");
 
@@ -89,7 +89,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const rowToColumnMap = {
     "Microsoft Legal Entity Name": "Microsoft_Legal_Entity_Name",
-    "Start Date": "StartDate",
+    "Start Date": "StartDatetext",
     "SSPA Requirements": "Supplier",
     "TGH Approval": "TGHApproval",
     "Mandatory Document/Requirement": "MandatoryDocsThreshold",
@@ -173,7 +173,7 @@ document.addEventListener("DOMContentLoaded", () => {
         child.classList.contains("row") &&
         child
           .querySelector(".label")
-          ?.textContent.includes("Mandatory Document/Requirement")
+          ?.textContent.includes("Mandatory Document/Requirement"),
     );
     const mandatoryColId = rowToColumnMap["Mandatory Document/Requirement"];
 
@@ -387,7 +387,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const tghApprovalRow = Array.from(container.children).find(
     (child) =>
       child.classList.contains("row") &&
-      child.querySelector(".label")?.textContent.includes("TGH Approval")
+      child.querySelector(".label")?.textContent.includes("TGH Approval"),
   );
 
   if (govCheckbox && tghApprovalRow) {
@@ -477,8 +477,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     fetch(
       `sql/get_po_owner.php?country=${encodeURIComponent(
-        countryValue
-      )}&category=${encodeURIComponent(categoryValue)}`
+        countryValue,
+      )}&category=${encodeURIComponent(categoryValue)}`,
     )
       .then((res) => res.json())
       .then(setAllValues)
@@ -525,7 +525,7 @@ document.addEventListener("DOMContentLoaded", () => {
       csvRows.push(
         cols
           .map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c))
-          .join(",")
+          .join(","),
       );
     });
 
@@ -579,7 +579,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let sspaRow = Array.from(container.children).find(
       (child) =>
         child.classList.contains("row") &&
-        child.querySelector(".label")?.textContent.includes(sspaRowLabel)
+        child.querySelector(".label")?.textContent.includes(sspaRowLabel),
     );
 
     if (!sspaRow) {
@@ -660,7 +660,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const sspaRow = Array.from(container.children).find(
       (child) =>
         child.classList.contains("row") &&
-        child.querySelector(".label")?.textContent.includes("SSPA Requirements")
+        child
+          .querySelector(".label")
+          ?.textContent.includes("SSPA Requirements"),
     );
     if (sspaRow) sspaRow.style.display = "none";
 
@@ -669,7 +671,7 @@ document.addEventListener("DOMContentLoaded", () => {
         child.classList.contains("row") &&
         child
           .querySelector(".label")
-          ?.textContent.includes("Mandatory Document/Requirement")
+          ?.textContent.includes("Mandatory Document/Requirement"),
     );
     if (mandatoryRow) mandatoryRow.style.display = "none";
 
@@ -677,7 +679,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const tghRow = Array.from(container.children).find(
       (child) =>
         child.classList.contains("row") &&
-        child.querySelector(".label")?.textContent.includes("TGH Approval")
+        child.querySelector(".label")?.textContent.includes("TGH Approval"),
     );
     if (tghRow) tghRow.style.display = "none";
 
