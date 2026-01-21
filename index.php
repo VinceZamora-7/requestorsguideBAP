@@ -124,7 +124,8 @@
               <select class="dropdown" id="country">
                 <option value="#" selected>-- Select --</option>
                 <!-- Values normalized (no tabs / consistent formatting) -->
-                <option value="Brunei1720">Brunei 1720</option>
+  <option value="Brunei1720">Brunei 1720</option>
+
                 <option value="China1107">China 1107</option>
                 <option value="Hong Kong1089">Hong Kong 1089</option>
                 <option value="Indonesia1046">Indonesia 1046</option>
