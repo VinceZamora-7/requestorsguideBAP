@@ -36,11 +36,20 @@ body {
 
 body {
   margin: 0;
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 200ms ease, color 200ms ease;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
 }
 
 /* ------------------------------
@@ -61,8 +70,8 @@ body.light {
   --muted-2: rgba(15, 23, 42, 0.5);
 
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 20px rgba(15, 23, 42, 0.08);
-  --shadow-hover: 0 2px 6px rgba(15, 23, 42, 0.08),
-    0 14px 36px rgba(15, 23, 42, 0.12);
+  --shadow-hover:
+    0 2px 6px rgba(15, 23, 42, 0.08), 0 14px 36px rgba(15, 23, 42, 0.12);
 
   --input-bg: #ffffff;
   --input-border: rgba(15, 23, 42, 0.16);
@@ -195,7 +204,9 @@ a:hover {
   cursor: pointer;
   z-index: 1000;
   box-shadow: var(--shadow);
-  transition: transform 200ms ease, background-color 200ms ease,
+  transition:
+    transform 200ms ease,
+    background-color 200ms ease,
     box-shadow 200ms ease;
 }
 .collapse-btn:hover {
@@ -216,7 +227,9 @@ a:hover {
   opacity: 0;
   pointer-events: none;
   transform: translateX(-6px);
-  transition: opacity 200ms ease, transform 200ms ease;
+  transition:
+    opacity 200ms ease,
+    transform 200ms ease;
 }
 .sidebar.collapsed #collapseBtn i {
   transform: rotate(180deg);
@@ -403,7 +416,9 @@ input:checked + .slider:before {
   padding: 26px;
   box-shadow: var(--shadow);
   animation: fadeSlide 220ms ease;
-  transition: box-shadow 220ms ease, transform 220ms ease;
+  transition:
+    box-shadow 220ms ease,
+    transform 220ms ease;
 }
 .block:hover {
   transform: translateY(-1px);
@@ -422,7 +437,9 @@ input:checked + .slider:before {
   border: 1px solid var(--border-2);
   background: var(--surface-2);
   color: var(--fg);
-  transition: transform 120ms ease, background-color 200ms ease,
+  transition:
+    transform 120ms ease,
+    background-color 200ms ease,
     border-color 200ms ease;
 }
 .btn:hover {
@@ -471,7 +488,9 @@ input:checked + .slider:before {
   color: var(--muted);
   padding: 6px;
   border-radius: 10px;
-  transition: background-color 200ms ease, color 200ms ease;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
 }
 .icon-btn:hover {
   background: rgba(127, 127, 127, 0.12);
@@ -490,7 +509,9 @@ input:checked + .slider:before {
   color: var(--fg);
   background: var(--input-bg);
   border: 1px solid var(--input-border);
-  transition: border-color 180ms ease, box-shadow 180ms ease,
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
     background-color 180ms ease;
 }
 .apple-input::placeholder,
@@ -752,7 +773,9 @@ input:checked + .slider:before {
   font-size: 14px;
   border-radius: 12px;
   cursor: pointer;
-  transition: transform 120ms ease, background-color 180ms ease,
+  transition:
+    transform 120ms ease,
+    background-color 180ms ease,
     box-shadow 180ms ease;
 }
 .submit-review-btn:hover {

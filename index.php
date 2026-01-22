@@ -256,12 +256,11 @@
                 </span>
               </div>
 
-              <div
-                id="currencyWrapper"
-                class="mt-4 rounded-2xl border border-white/20 bg-white/50 p-4 shadow-sm backdrop-blur-xl dark:bg-white/5 dark:border-white/10"
-                title="Choose a country first"
-                aria-disabled="true"
-              >
+              <div id="currencyWrapper"
+  ...
+  aria-disabled="true"
+>
+
                 <!-- Keep existing hook class -->
                 <div class="currency-wrapper disabled">
                   <!-- Local currency -->

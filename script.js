@@ -78,7 +78,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // ========================
   // DATA (MUST MATCH HTML option values)
   // ========================
-  // Normalizes: removes spaces + tabs so "Brunei 1720" == "Brunei\t1720" == "Brunei1720"
   const normKey = (v) =>
     String(v ?? "")
       .replace(/\s+/g, "")
@@ -92,15 +91,13 @@ document.addEventListener("DOMContentLoaded", () => {
     Japan1079: "JPY",
     Korea1056: "KRW",
     Malaysia1037: "MYR",
+    Myanmar1224: "MMK",
     Philippines1047: "PHP",
     Singapore1290: "SGD",
     Singapore1291: "SGD",
     Taiwan1058: "TWD",
     Thailand1021: "THB",
     Vietnam1714: "VND",
-
-    // ✅ add this
-    Myanmar1224: "MMK",
   };
 
   const currencyData = {
@@ -111,14 +108,13 @@ document.addEventListener("DOMContentLoaded", () => {
     INR: { rate: 0.0117154, precision: 7 },
     JPY: { rate: 0.0069, precision: 5 },
     KRW: { rate: 0.000726665, precision: 9 },
-    MMK: { rate: 0.0004762, precision: 7 },
+    MMK: { rate: 0.0004762, precision: 7 }, // ✅ only once
     MYR: { rate: 0.23669, precision: 5 },
     PHP: { rate: 0.01802, precision: 5 },
     SGD: { rate: 0.77583, precision: 5 },
     THB: { rate: 0.03066, precision: 5 },
     TWD: { rate: 0.03343, precision: 5 },
     VND: { rate: 0.000038506, precision: 9 },
-    MMK: { rate: 0.0004762, precision: 7 },
   };
 
   const rows = [
@@ -153,7 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
       "https://msit.powerbi.com/groups/me/apps/b0462f25-687a-4bdc-a2ff-aeaaaf24847f/reports/1ea75c26-ea3d-4418-a9d0-d92eb9b09efd/ReportSection4dbddf00c9e2db980242",
   };
 
-  const elements = {}; // colId -> value element
+  const elements = {};
 
   // ========================
   // TABLE HELPERS
@@ -173,7 +169,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return countryCurrencyMap[key] || "USD";
   };
 
-  // Track which field user last edited so we can recalc correctly on country change
   let lastAmountSource = null; // "local" | "usd" | null
 
   const setLocalCurrencyLabel = (text) => {
@@ -185,26 +180,30 @@ document.addEventListener("DOMContentLoaded", () => {
       localCurrencyContainer.insertAdjacentText("beforeend", ` ${text}`);
   };
 
+  // ✅ Tooltip appears ONLY when disabled
   const enableCurrency = (enabled) => {
     if (!localCurrencyInput || !usdAmountInput || !currencyWrapper) return;
+
+    const inner = currencyWrapper.querySelector(".currency-wrapper"); // ✅ inner wrapper
 
     localCurrencyInput.disabled = !enabled;
     usdAmountInput.disabled = !enabled;
 
     if (enabled) {
       currencyWrapper.classList.remove("disabled");
-      currencyWrapper.removeAttribute("title");
+      inner?.classList.remove("disabled");
+      currencyWrapper.removeAttribute("title"); // ✅ remove tooltip
       currencyWrapper.setAttribute("aria-disabled", "false");
     } else {
       localCurrencyInput.value = "";
       usdAmountInput.value = "";
       currencyWrapper.classList.add("disabled");
-      currencyWrapper.setAttribute("title", "Choose a country first");
+      inner?.classList.add("disabled");
+      currencyWrapper.setAttribute("title", "Choose a country first"); // ✅ tooltip only here
       currencyWrapper.setAttribute("aria-disabled", "true");
       lastAmountSource = null;
     }
 
-    // Keep your icon and show currency text
     setLocalCurrencyLabel(enabled ? getSelectedCurrency() : "");
     if (usdAmountContainer) usdAmountContainer.textContent = "$";
   };
@@ -241,7 +240,6 @@ document.addEventListener("DOMContentLoaded", () => {
     checkApprovalRequirement();
   };
 
-  // ✅ Recalculate amounts when country changes
   const recalcOnCountryChange = () => {
     const valid = countryDropdown.value && countryDropdown.value !== "#";
 
@@ -255,20 +253,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const localHas = localCurrencyInput?.value?.trim() !== "";
     const usdHas = usdAmountInput?.value?.trim() !== "";
 
-    // Use lastAmountSource if we know it, otherwise infer.
     const source =
       lastAmountSource ||
       (usdHas && !localHas ? "usd" : localHas ? "local" : null);
 
-    if (source === "usd" && usdHas) {
-      convertUSDToLocal();
-    } else if (source === "local" && localHas) {
-      convertLocalToUSD();
-    } else if (localHas) {
-      convertLocalToUSD();
-    } else if (usdHas) {
-      convertUSDToLocal();
-    }
+    if (source === "usd" && usdHas) convertUSDToLocal();
+    else if (source === "local" && localHas) convertLocalToUSD();
+    else if (localHas) convertLocalToUSD();
+    else if (usdHas) convertUSDToLocal();
 
     checkApprovalRequirement();
   };
@@ -318,12 +310,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // ========================
   // FEEDBACK: Mandatory Docs + Procurement + SOW
   // ========================
+  // ========================
+  // FEEDBACK: Mandatory Docs + Procurement + SOW
+  // ========================
   const checkApprovalRequirement = () => {
     const usdVal = toNumber(usdAmountInput?.value);
 
     const mandatoryRow = findRowByLabel("Mandatory Document/Requirement");
     const mandatoryColId = rowToColumnMap["Mandatory Document/Requirement"];
 
+    // If no USD amount, hide everything related
     if (usdVal === null) {
       hide(feedbackRow);
       if (mandatoryRow) hide(mandatoryRow);
@@ -331,35 +327,44 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // ✅ Default threshold for ALL countries
     let threshold = 100000;
-    const cKey = normKey(countryDropdown.value);
-    if (cKey === "Singapore1290" || cKey === "Singapore1291")
-      threshold = 500000;
 
+    // ✅ Only Singapore uses 500,000
+    const cKey = normKey(countryDropdown.value);
+    if (cKey === "Singapore1290" || cKey === "Singapore1291") {
+      threshold = 500000;
+    }
+
+    // Choose whether it triggers at exactly threshold:
+    // - use >  : triggers only when above threshold
+    // - use >= : triggers at threshold and above
     const exceeded = usdVal > threshold;
 
     if (exceeded) {
       show(feedbackRow);
+
       if (feedbackMessage) {
         feedbackMessage.innerHTML = `
-    <div class="flex items-start gap-2">
-      <i class="fas fa-exclamation-circle text-red-600 mt-0.5" aria-hidden="true"></i>
-      <span class="font-semibold text-red-600">Procurement approval is required!</span>
-    </div>
+        <div class="flex items-start gap-2">
+          <i class="fas fa-exclamation-circle text-red-600 mt-0.5" aria-hidden="true"></i>
+          <span class="font-semibold text-red-600">Procurement approval is required!</span>
+        </div>
 
-    <div class="mt-1 flex items-start gap-2">
-      <i class="fas fa-file-signature text-red-600 mt-0.5" aria-hidden="true"></i>
-      <span class="font-semibold text-red-600">SOW is required!</span>
-    </div>
-  `;
+        <div class="mt-1 flex items-start gap-2">
+          <i class="fas fa-file-signature text-red-600 mt-0.5" aria-hidden="true"></i>
+          <span class="font-semibold text-red-600">SOW is required!</span>
+        </div>
+      `;
       }
 
       if (mandatoryRow) {
         mandatoryRow.style.display = "grid";
         const valueDiv = mandatoryRow.querySelector(".value");
         if (valueDiv) {
-          valueDiv.textContent =
-            "If PO Amount is 100,000+, SOW and Procurement Approval is required";
+          valueDiv.textContent = `If PO Amount is ${formatWithCommas(
+            threshold,
+          )}+, SOW and Procurement Approval is required`;
         }
       }
     } else {
@@ -402,7 +407,6 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
 
-    // Hide by default
     if (
       label === "TGH Approval" ||
       label === "Mandatory Document/Requirement"
@@ -458,7 +462,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (ok) hasMatch = true;
     });
 
-    // Out of Scope item
     let outOfScope = categoryList.querySelector("li.out-of-scope");
     if (!hasMatch) {
       if (!outOfScope) {
@@ -582,13 +585,10 @@ document.addEventListener("DOMContentLoaded", () => {
     convertUSDToLocal();
   });
 
-  // ✅ Country change now ALSO recalculates conversion properly
+  // ✅ country change: recalc + fetch ONLY (no double conversion)
   countryDropdown.addEventListener("change", () => {
     recalcOnCountryChange();
     fetchDataDebounced();
-    // Recompute based on what the user already typed
-    if (localCurrencyInput.value) convertLocalToUSD();
-    else if (usdAmountInput.value) convertUSDToLocal();
   });
 
   categoryInput.addEventListener("change", fetchDataDebounced);
