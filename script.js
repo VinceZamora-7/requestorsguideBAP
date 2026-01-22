@@ -362,9 +362,7 @@ document.addEventListener("DOMContentLoaded", () => {
         mandatoryRow.style.display = "grid";
         const valueDiv = mandatoryRow.querySelector(".value");
         if (valueDiv) {
-          valueDiv.textContent = `If PO Amount is ${formatWithCommas(
-            threshold,
-          )}+, SOW and Procurement Approval is required`;
+          valueDiv.textContent = `If PO Amount is 500000+, SOW and Procurement Approval is required`;
         }
       }
     } else {
