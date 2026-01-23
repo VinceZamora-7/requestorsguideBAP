@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BAP Task Guide</title>
+    <!-- Favicon -->
+<link rel="icon" href="img/CGlogo.png" sizes="any">
+<link rel="icon" href="img/CGlogo.png" type="image/svg+xml">
+<link rel="apple-touch-icon" href="img/CGlogo.png">
+
 
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -353,7 +358,7 @@
                   class="poweredby flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400"
                   aria-hidden="true"
                 >
-                  <span>Powered by</span>
+                 
                   <span
                     class="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/60 px-2 py-1 dark:bg-white/10 dark:border-white/10"
                   >
