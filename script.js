@@ -296,10 +296,42 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
   };
 
-  const handlePaste = (e) => {
-    const paste = (e.clipboardData || window.clipboardData).getData("text");
-    if (!/^\d*\.?\d*$/.test(paste.trim())) e.preventDefault();
-  };
+const handlePaste = (e) => {
+  const paste = (e.clipboardData || window.clipboardData).getData("text");
+
+  // Allow common pasted formats like:
+  // "1,234.56", "  ₱ 1,234.56  ", "$1,234", etc.
+  let cleaned = paste.trim();
+
+  // Remove spaces and commas (we'll re-format later anyway)
+  cleaned = cleaned.replace(/\s+/g, "").replace(/,/g, "");
+
+  // Remove currency symbols and any other non-numeric chars EXCEPT "."
+  cleaned = cleaned.replace(/[^\d.]/g, "");
+
+  // Keep only the first dot if multiple dots exist
+  const firstDot = cleaned.indexOf(".");
+  if (firstDot !== -1) {
+    cleaned =
+      cleaned.slice(0, firstDot + 1) +
+      cleaned.slice(firstDot + 1).replace(/\./g, "");
+  }
+
+  // If nothing valid remains, block paste
+  if (!cleaned || !/^\d*\.?\d*$/.test(cleaned)) {
+    e.preventDefault();
+    return;
+  }
+
+  // Paste the cleaned number at the caret (instead of the raw text)
+  e.preventDefault();
+  const input = e.target;
+  input.setRangeText(cleaned, input.selectionStart, input.selectionEnd, "end");
+
+  // Trigger your existing conversion logic (your input listeners will run too)
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+};
+
 
   [localCurrencyInput, usdAmountInput].forEach((input) => {
     if (!input) return;
