@@ -234,12 +234,12 @@
             </div>
 
             <!-- Internal Order -->
-            <div class="sb-row">
+            <!-- <div class="sb-row">
               <label for="internalOrderBtn">Internal Order Number</label>
               <button id="internalOrderBtn" class="btn btn-secondary" type="button">
                 Select Internal Order Number
               </button>
-            </div>
+            </div> -->
           </section>
 
           <!-- Currency Converter -->
